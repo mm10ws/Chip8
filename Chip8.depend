@@ -1,0 +1,5 @@
+# depslib dependency file v1.0
+1558840507 source:/home/devone/Desktop/Chip8/Chip8/main.c
+	<stdio.h>
+	<stdlib.h>
+
