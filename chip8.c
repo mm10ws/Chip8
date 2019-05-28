@@ -88,6 +88,60 @@ void decode(uint16_t opcode)
     {
         skip_if_reg_equals_value(nibbles[1], opcode);
     }
+    else if (nibbles[0] == 0x4)
+    {
+        skip_if_reg_not_equals_value(nibbles[1], opcode);
+    }
+    else if (nibbles[0] == 0x5 && nibbles[3] == 0x0)
+    {
+        skip_if_reg_equal(nibbles[1], nibbles[2]);
+    }
+    else if (nibbles[0] == 0x6)
+    {
+        load_value(nibbles[1], opcode);
+    }
+    else if (nibbles[0] == 0x7)
+    {
+        add_value(nibbles[1], opcode);
+    }
+    else if (nibbles[0] == 0x8 && nibbles[3] == 0x0)
+    {
+        load_from_register(nibbles[1], nibbles[2]);
+    }
+    else if (nibbles[0] == 0x8 && nibbles[3] == 0x1)
+    {
+        or_registers(nibbles[1], nibbles[2]);
+    }
+    else if (nibbles[0] == 0x8 && nibbles[3] == 0x2)
+    {
+        and_registers(nibbles[1], nibbles[2]);
+    }
+    else if (nibbles[0] == 0x8 && nibbles[3] == 0x3)
+    {
+        xor_registers(nibbles[1], nibbles[2]);
+    }
+    else if (nibbles[0] == 0x8 && nibbles[3] == 0x4)
+    {
+        add_registers(nibbles[1], nibbles[2]);
+    }
+    else if (nibbles[0] == 0x8 && nibbles[3] == 0x5)
+    {
+        sub_registers(nibbles[1], nibbles[2]);
+    }
+    else if (nibbles[0] == 0x8 && nibbles[3] == 0x6)
+    {
+        shift_register_right(nibbles[1]);
+    }
+    else if (nibbles[0] == 0x8 && nibbles[3] == 0x7)
+    {
+        subn_registers(nibbles[1], nibbles[2]);
+    }
+    else if (nibbles[0] == 0x8 && nibbles[3] == 0xe)
+    {
+        shift_register_left(nibbles[1]);
+    }
+
+
 }
 
 void return_instruction()
@@ -113,12 +167,132 @@ void call_instruction(uint16_t opcode)
     jump_instruction(opcode);
 }
 
-void skip_if_reg_equals_value(uint8_t reg, uint16_t opcode)
+void skip_if_reg_equals_value(uint8_t x, uint16_t opcode)
 {
     // increment the pc by two if Vx = value
     uint8_t value = opcode & 0xff;
-    if (reg_vx[reg] == value)
+    if (reg_vx[x] == value)
     {
         reg_pc = reg_pc + 2;
     }
+}
+
+void skip_if_reg_not_equals_value(uint8_t x, uint16_t opcode)
+{
+    // increment the pc by two if Vx != value
+    uint8_t value = opcode & 0xff;
+    if (reg_vx[x] != value)
+    {
+        reg_pc = reg_pc + 2;
+    }
+}
+
+void skip_if_reg_equal(uint8_t x, uint8_t y)
+{
+    // increment the pc by two if Vx = Vy
+    if (reg_vx[x] == reg_vx[y])
+    {
+        reg_pc = reg_pc + 2;
+    }
+}
+
+void load_value(uint8_t x, uint16_t opcode)
+{
+    // load the last byte of the opcode into Vx
+    uint8_t value = opcode & 0xff;
+    reg_vx[x] = value;
+}
+
+void add_value(uint8_t x, uint16_t opcode)
+{
+    // add the last byte of the opcode to Vx and store in Vx
+    uint8_t value = opcode & 0xff;
+    reg_vx[x] += value;
+}
+
+void load_from_register(uint8_t x, uint8_t y)
+{
+    // set Vx to the value in Vy
+    reg_vx[x] = reg_vx[y];
+}
+
+void or_registers(uint8_t x, uint8_t y)
+{
+    // do a bitwise or of Vx and Vy and store in Vx
+    reg_vx[x] |= reg_vx[y];
+}
+
+void and_registers(uint8_t x, uint8_t y)
+{
+    // do a bitwise and of Vx and Vy and store in Vx
+    reg_vx[x] &= reg_vx[y];
+}
+
+void xor_registers(uint8_t x, uint8_t y)
+{
+    // do a bitwise xor of Vx and Vy and store in Vx
+    reg_vx[x] ^= reg_vx[y];
+}
+
+void add_registers(uint8_t x, uint8_t y)
+{
+    // add Vx and Vy and store in Vx, if it overflows set the carry bit Vf
+    if (reg_vx[x] > 0xff - reg_vx[y])
+    {
+        reg_vx[0xf] = 0x1;
+    }
+    else
+    {
+        reg_vx[0xf] = 0x0;
+    }
+    reg_vx[x] += reg_vx[y];
+}
+
+void sub_registers(uint8_t x, uint8_t y)
+{
+    // set Vf to not borrow if Vx > Vy, then subtract Vy from Vx and store in Vx
+    if (reg_vx[x] > reg_vx[y])
+    {
+        reg_vx[0xf] = 0x1;
+    }
+    else
+    {
+        reg_vx[0xf] = 0x0;
+    }
+    reg_vx[x] -= reg_vx[y];
+}
+
+void shift_register_right(uint8_t x)
+{
+    // shift Vx right by 1, if the LSB is one store it in Vf
+    if (reg_vx[x] % 2 != 0)
+    {
+        reg_vx[0xf] = 0x1;
+    }
+    else
+    {
+        reg_vx[0xf] = 0x0;
+    }
+    reg_vx[x] >>= 1;
+}
+
+void subn_registers(uint8_t x, uint8_t y)
+{
+    // set Vf to not borrow if Vy > Vx, then subtract Vx from Vy and store in Vx
+    if (reg_vx[y] > reg_vx[x])
+    {
+        reg_vx[0xf] = 0x1;
+    }
+    else
+    {
+        reg_vx[0xf] = 0x0;
+    }
+    reg_vx[x] = reg_vx[y] - reg_vx[x];
+}
+
+void shift_register_left(uint8_t x)
+{
+    // shift Vx left by 1, if the MSB is one store it in Vf
+    reg_vx[0xf] = (reg_vx[x] >> 7) & 0x1;
+    reg_vx[x] <<= 1;
 }
