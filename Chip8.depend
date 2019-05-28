@@ -1,5 +1,13 @@
 # depslib dependency file v1.0
-1558840507 source:/home/devone/Desktop/Chip8/Chip8/main.c
+1559011873 source:/home/devone/Desktop/Chip8/Chip8/main.c
 	<stdio.h>
 	<stdlib.h>
+
+1559017223 source:/home/devone/Desktop/Chip8/Chip8/chip8.c
+	<stdio.h>
+	<stdlib.h>
+	<stdint.h>
+	"chip8.h"
+
+1559017187 /home/devone/Desktop/Chip8/Chip8/chip8.h
 
