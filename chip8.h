@@ -1,9 +1,10 @@
 #ifndef CHIP8_H
 #define CHIP8_H
 
-void init_emulator();
+void init_emulator(char * path_to_rom);
 void execute_cycle();
-void decode(uint16_t opcode);
+void decode_and_execute(uint16_t opcode);
+void clear_display();
 void return_instruction();
 void jump_instruction(uint16_t opcode);
 void call_instruction(uint16_t opcode);
@@ -21,5 +22,21 @@ void sub_registers(uint8_t x, uint8_t y);
 void shift_register_right(uint8_t x);
 void subn_registers(uint8_t x, uint8_t y);
 void shift_register_left(uint8_t x);
+void skip_if_reg_not_equal(uint8_t x, uint8_t y);
+void load_i_value(uint16_t opcode);
+void jump_reg_plus_value(uint16_t opcode);
+void set_reg_random_byte(uint8_t x, uint16_t opcode);
+void display_sprite(uint8_t x, uint8_t y, uint8_t n);
+void skip_if_key_pressed(uint8_t x);
+void skip_if_key_not_pressed(uint8_t x);
+void delay_timer_to_reg(uint8_t x);
+void store_key_press(uint8_t x);
+void set_delay_timer(uint8_t x);
+void set_sound_timer(uint8_t x);
+void add_reg_to_i(uint8_t x);
+void set_i_sprite_location(uint8_t x);
+void store_bcd(uint8_t x);
+void copy_reg_to_mem(uint8_t x);
+void load_reg_from_mem(uint8_t x);
 
 #endif
