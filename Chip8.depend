@@ -3,10 +3,11 @@
 	<stdio.h>
 	<stdlib.h>
 
-1559444115 source:/home/devone/Desktop/Chip8/Chip8/chip8.c
+1559513190 source:/home/devone/Desktop/Chip8/Chip8/chip8.c
 	<stdio.h>
 	<stdlib.h>
 	<stdint.h>
+	<SDL2/SDL.h>
 	"chip8.h"
 
 1559444124 /home/devone/Desktop/Chip8/Chip8/chip8.h

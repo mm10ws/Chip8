@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <SDL2/SDL.h>
 #include "chip8.h"
 
 // registers 16 1 byte registers
@@ -25,8 +26,32 @@ uint16_t stack[16];
 // memory 4K bytes
 uint8_t memory[4096];
 
+// display information 64x32 display
+uint8_t display[64 * 32];
+
 // opcode 2 bytes
 uint16_t current_opcode;
+
+// maps key to enum value (SDL library) by index
+static int sdl_keymapping[16] =
+{
+    SDL_SCANCODE_0,
+    SDL_SCANCODE_1,
+    SDL_SCANCODE_2,
+    SDL_SCANCODE_3,
+    SDL_SCANCODE_4,
+    SDL_SCANCODE_5,
+    SDL_SCANCODE_6,
+    SDL_SCANCODE_7,
+    SDL_SCANCODE_8,
+    SDL_SCANCODE_9,
+    SDL_SCANCODE_A,
+    SDL_SCANCODE_B,
+    SDL_SCANCODE_C,
+    SDL_SCANCODE_D,
+    SDL_SCANCODE_E,
+    SDL_SCANCODE_F
+};
 
 int main(int argc, char *argv[])
 {
@@ -46,6 +71,7 @@ void init_emulator(char * path_to_rom)
     // the program starts at 0x200
     reg_pc = 0x200;
 
+    // load rom into memory
     printf("loading %s\n", path_to_rom);
     FILE *file = fopen(path_to_rom, "rb");
     if (file != NULL)
@@ -57,6 +83,17 @@ void init_emulator(char * path_to_rom)
         perror("unable to open file\n");
         exit(EXIT_FAILURE);
     }
+
+    // set up SDL for display output
+    if (SDL_Init(SDL_INIT_EVERYTHING) != 0)
+    {
+        perror(SDL_GetError());
+        exit(EXIT_FAILURE);
+    }
+    SDL_Window *win = SDL_CreateWindow("Chip8 Emulator",
+                                       SDL_WINDOWPOS_CENTERED,
+                                       SDL_WINDOWPOS_CENTERED,
+                                       640, 320, 0);
 }
 
 // execute a single cycle: fetch, decode, and execute
@@ -64,7 +101,6 @@ void execute_cycle()
 {
     // fetch opcode (left shift the first byte and or it with the second byte)
     // todo: make sure we dont go out of bounds
-    // todo: need to increment pc somewhere
     current_opcode =  memory[reg_pc] << 8 | memory[reg_pc + 1];
     decode_and_execute(current_opcode);
 }
@@ -223,29 +259,29 @@ void decode_and_execute(uint16_t opcode)
 
 void clear_display()
 {
-    // todo
+    memset(display, 0, sizeof(display));
 }
 
 void return_instruction()
 {
     // sets the program counter to the address at the top of the stack,
     // then subtracts 1 from the stack pointer
-    reg_pc = stack[reg_sp];
     reg_sp--;
+    reg_pc = stack[reg_sp];
+    reg_pc += 2;
 }
 
 void jump_instruction(uint16_t opcode)
 {
     // set the pc to the last 12 bits of the opcode
-    uint16_t address = opcode & 0xfff;
-    reg_pc = address;
+    reg_pc = opcode & 0xfff;
 }
 
 void call_instruction(uint16_t opcode)
 {
     // increment sp and store pc on stack, then call jump
-    reg_sp++;
     stack[reg_sp] = reg_pc;
+    reg_sp++;
     jump_instruction(opcode);
 }
 
@@ -426,17 +462,50 @@ void set_reg_random_byte(uint8_t x, uint16_t opcode)
 
 void display_sprite(uint8_t x, uint8_t y, uint8_t n)
 {
-    // todo
+    reg_vx[0xf] = 0;
+    for (int i = 0; i < n; i++)
+    {
+        uint8_t pixel = memory[reg_i + i];
+        for (int j = 0; j < 8; j++)
+        {
+            uint8_t pixel_bit = (pixel & (0x80 >> j)) >> (7 - j);
+            uint8_t display_bit = display[x + i + 64 * (y + j)];
+            if ((pixel_bit & display_bit) == 0x1)
+            {
+                reg_vx[0xf] = 1;
+            }
+            display[x + i + 64 * (y + j)] ^= pixel_bit;
+        }
+    }
+    reg_pc += 2;
 }
 
 void skip_if_key_pressed(uint8_t x)
 {
-    // todo
+    // skip the next instruction if the key in Vx is pressed
+    const uint8_t *keys = SDL_GetKeyboardState(NULL);
+    SDL_PumpEvents();
+
+    int key = sdl_keymapping[reg_vx[x]];
+    if (keys[key])
+    {
+        reg_pc += 2;
+    }
+    reg_pc += 2;
 }
 
 void skip_if_key_not_pressed(uint8_t x)
 {
-    // todo
+    // skip the next instruction if the key in Vx is not pressed
+    const uint8_t *keys = SDL_GetKeyboardState(NULL);
+    SDL_PumpEvents();
+
+    int key = sdl_keymapping[reg_vx[x]];
+    if (!keys[key])
+    {
+        reg_pc += 2;
+    }
+    reg_pc += 2;
 }
 
 void delay_timer_to_reg(uint8_t x)
@@ -447,8 +516,25 @@ void delay_timer_to_reg(uint8_t x)
 
 void store_key_press(uint8_t x)
 {
-    // todo
-    // reg_vx[x] = reg_delay;
+    // wait for a valid key to be pressed and store it in Vx
+    const uint8_t *keys = SDL_GetKeyboardState(NULL);
+
+    while (1)
+    {
+        printf("awaiting valid key press\n");
+        SDL_PumpEvents();
+
+        for (int i = 0; i < 16; i++)
+        {
+            if (keys[sdl_keymapping[i]])
+            {
+                reg_vx[x] = i;
+                reg_pc += 2;
+                return;
+            }
+        }
+        // todo: may want to add sleep to slow down this loop
+    }
 }
 
 void set_delay_timer(uint8_t x)
