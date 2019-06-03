@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <unistd.h>
 #include <SDL2/SDL.h>
 #include "chip8.h"
 
@@ -53,15 +54,47 @@ static int sdl_keymapping[16] =
     SDL_SCANCODE_F
 };
 
+static uint8_t fontset[80] =
+{
+    0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
+    0x20, 0x60, 0x20, 0x20, 0x70, // 1
+    0xF0, 0x10, 0xF0, 0x80, 0xF0, // 2
+    0xF0, 0x10, 0xF0, 0x10, 0xF0, // 3
+    0x90, 0x90, 0xF0, 0x10, 0x10, // 4
+    0xF0, 0x80, 0xF0, 0x10, 0xF0, // 5
+    0xF0, 0x80, 0xF0, 0x90, 0xF0, // 6
+    0xF0, 0x10, 0x20, 0x40, 0x40, // 7
+    0xF0, 0x90, 0xF0, 0x90, 0xF0, // 8
+    0xF0, 0x90, 0xF0, 0x10, 0xF0, // 9
+    0xF0, 0x90, 0xF0, 0x90, 0x90, // A
+    0xE0, 0x90, 0xE0, 0x90, 0xE0, // B
+    0xF0, 0x80, 0x80, 0x80, 0xF0, // C
+    0xE0, 0x90, 0x90, 0x90, 0xE0, // D
+    0xF0, 0x80, 0xF0, 0x80, 0xF0, // E
+    0xF0, 0x80, 0xF0, 0x80, 0x80  // F
+};
+
+SDL_Window *window;
+SDL_Renderer *renderer;
+
 int main(int argc, char *argv[])
 {
     init_emulator(argv[1]);
 
-//    for (;;)
-//    {
-//        execute_cycle();
-//    }
-    printf("Hello World!\n");
+    for (;;)
+    {
+        execute_cycle();
+        usleep(16000);
+
+        if (reg_delay > 0)
+        {
+            reg_delay--;
+        }
+        if (reg_sound > 0)
+        {
+            reg_sound--;
+        }
+    }
     return 0;
 }
 
@@ -70,6 +103,12 @@ void init_emulator(char * path_to_rom)
 {
     // the program starts at 0x200
     reg_pc = 0x200;
+
+    // load fontset into memory
+    for (int i = 0; i < 80; i++)
+    {
+        memory[i] = fontset[i];
+    }
 
     // load rom into memory
     printf("loading %s\n", path_to_rom);
@@ -90,18 +129,31 @@ void init_emulator(char * path_to_rom)
         perror(SDL_GetError());
         exit(EXIT_FAILURE);
     }
-    SDL_Window *win = SDL_CreateWindow("Chip8 Emulator",
-                                       SDL_WINDOWPOS_CENTERED,
-                                       SDL_WINDOWPOS_CENTERED,
-                                       640, 320, 0);
+    SDL_CreateWindowAndRenderer(640, 320, 0, &window, &renderer);
+    SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+}
+
+void draw_display()
+{
+    for (int i = 0; i < 640; i++)
+    {
+        for (int j = 0; j < 320; j++)
+        {
+            if (display[i/10 + 64 * (j / 10)] == 0x1)
+            {
+                SDL_RenderDrawPoint(renderer, i, j);
+            }
+        }
+    }
+    SDL_RenderPresent(renderer);
 }
 
 // execute a single cycle: fetch, decode, and execute
 void execute_cycle()
 {
     // fetch opcode (left shift the first byte and or it with the second byte)
-    // todo: make sure we dont go out of bounds
     current_opcode =  memory[reg_pc] << 8 | memory[reg_pc + 1];
+    printf("current op: %x\n", current_opcode);
     decode_and_execute(current_opcode);
 }
 
@@ -260,6 +312,7 @@ void decode_and_execute(uint16_t opcode)
 void clear_display()
 {
     memset(display, 0, sizeof(display));
+    draw_display();
 }
 
 void return_instruction()
@@ -478,6 +531,7 @@ void display_sprite(uint8_t x, uint8_t y, uint8_t n)
         }
     }
     reg_pc += 2;
+    draw_display();
 }
 
 void skip_if_key_pressed(uint8_t x)
@@ -557,7 +611,11 @@ void add_reg_to_i(uint8_t x)
 
 void set_i_sprite_location(uint8_t x)
 {
-    // todo
+    // set I to be the location of the font corresponding to the value in Vx
+    // since the fonts are 5 bytes long and in memory at 0x0, we can muliply the value
+    // in Vx by 5 to get the location in memory
+    reg_i = memory[reg_vx[x] * 5];
+    reg_pc += 2;
 }
 
 void store_bcd(uint8_t x)
