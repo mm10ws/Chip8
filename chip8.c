@@ -130,21 +130,24 @@ void init_emulator(char * path_to_rom)
         exit(EXIT_FAILURE);
     }
     SDL_CreateWindowAndRenderer(640, 320, 0, &window, &renderer);
-    SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
 }
 
 void draw_display()
 {
-    for (int i = 0; i < 640; i++)
+    SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+    SDL_RenderClear(renderer);
+    SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+    for (int i = 0; i < 320; i++)
     {
-        for (int j = 0; j < 320; j++)
+        for (int j = 0; j < 640; j++)
         {
             if (display[i/10 + 64 * (j / 10)] == 0x1)
             {
-                SDL_RenderDrawPoint(renderer, i, j);
+                SDL_RenderDrawPoint(renderer, j, i);
             }
         }
     }
+
     SDL_RenderPresent(renderer);
 }
 
@@ -313,6 +316,7 @@ void clear_display()
 {
     memset(display, 0, sizeof(display));
     draw_display();
+    reg_pc += 2;
 }
 
 void return_instruction()
@@ -445,14 +449,7 @@ void sub_registers(uint8_t x, uint8_t y)
 void shift_register_right(uint8_t x)
 {
     // shift Vx right by 1, if the LSB is one store it in Vf
-    if (reg_vx[x] % 2 != 0)
-    {
-        reg_vx[0xf] = 0x1;
-    }
-    else
-    {
-        reg_vx[0xf] = 0x0;
-    }
+    reg_vx[0xf] = reg_vx[x] & 0x1;
     reg_vx[x] >>= 1;
     reg_pc += 2;
 }
@@ -502,14 +499,13 @@ void jump_reg_plus_value(uint16_t opcode)
     // the pc will be set to V0 + last 12 bits of opcode
     uint16_t value = opcode & 0xfff;
     reg_pc = reg_vx[0] + value;
-    reg_pc += 2;
 }
 
 void set_reg_random_byte(uint8_t x, uint16_t opcode)
 {
     // set Vx to be a random byte anded with the last byte of the opcode
     uint8_t value = opcode & 0xff;
-    reg_vx[x] = rand() & value;
+    reg_vx[x] = (rand() % 0xff) & value;
     reg_pc += 2;
 }
 
@@ -605,6 +601,15 @@ void set_sound_timer(uint8_t x)
 
 void add_reg_to_i(uint8_t x)
 {
+    // if there is an overflow set Vf to 1, 0 otherwise
+    if (reg_i + reg_vx[x] > 0xfff)
+    {
+        reg_vx[0xf] = 1;
+    }
+    else
+    {
+        reg_vx[0xf] = 0;
+    }
     reg_i += reg_vx[x];
     reg_pc += 2;
 }
@@ -614,7 +619,7 @@ void set_i_sprite_location(uint8_t x)
     // set I to be the location of the font corresponding to the value in Vx
     // since the fonts are 5 bytes long and in memory at 0x0, we can muliply the value
     // in Vx by 5 to get the location in memory
-    reg_i = memory[reg_vx[x] * 5];
+    reg_i = reg_vx[x] * 5;
     reg_pc += 2;
 }
 
