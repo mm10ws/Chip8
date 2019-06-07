@@ -3,13 +3,14 @@
 	<stdio.h>
 	<stdlib.h>
 
-1559615228 source:/home/devone/Desktop/Chip8/Chip8/chip8.c
+1559935271 source:/home/devone/Desktop/Chip8/Chip8/chip8.c
 	<stdio.h>
 	<stdlib.h>
 	<stdint.h>
 	<unistd.h>
+	<stdbool.h>
 	<SDL2/SDL.h>
 	"chip8.h"
 
-1559444124 /home/devone/Desktop/Chip8/Chip8/chip8.h
+1559932424 /home/devone/Desktop/Chip8/Chip8/chip8.h
 

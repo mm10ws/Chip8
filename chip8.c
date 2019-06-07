@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <unistd.h>
+#include <stdbool.h>
 #include <SDL2/SDL.h>
 #include "chip8.h"
 
@@ -79,7 +80,7 @@ SDL_Renderer *renderer;
 
 int main(int argc, char *argv[])
 {
-    init_emulator(argv[1]);
+    init_emulator(argv[1], argv[2]);
 
     for (;;)
     {
@@ -99,7 +100,7 @@ int main(int argc, char *argv[])
 }
 
 // Sets all registers to their initial values
-void init_emulator(char * path_to_rom)
+void init_emulator(char * path_to_rom, bool debug)
 {
     // the program starts at 0x200
     reg_pc = 0x200;
@@ -123,6 +124,11 @@ void init_emulator(char * path_to_rom)
         exit(EXIT_FAILURE);
     }
 
+    if (debug)
+    {
+        disassemble();
+    }
+
     // set up SDL for display output
     if (SDL_Init(SDL_INIT_EVERYTHING) != 0)
     {
@@ -130,6 +136,171 @@ void init_emulator(char * path_to_rom)
         exit(EXIT_FAILURE);
     }
     SDL_CreateWindowAndRenderer(640, 320, 0, &window, &renderer);
+}
+
+void disassemble()
+{
+    FILE *f = fopen("output.txt", "w");
+    if (f == NULL)
+    {
+        printf("Error opening file!\n");
+        exit(EXIT_FAILURE);
+    }
+
+    for (int i = 0x200; i < 4094; i+=2)
+    {
+        uint16_t op = memory[i] << 8 | memory[i + 1];
+
+        uint8_t nibbles[4];
+        nibbles[0] = (op >> 12) & 0xf;
+        nibbles[1] = (op >> 8) & 0xf;
+        nibbles[2] = (op >> 4) & 0xf;
+        nibbles[3] = op & 0xf;
+
+        fprintf(f, "%4X | %4X | ", i, op);
+
+        if (op == 0x00e0)
+        {
+            fprintf(f, "CLS\n");
+        }
+        else if (op == 0x00ee)
+        {
+            fprintf(f, "RET\n");
+        }
+        else if (nibbles[0] == 0x1)
+        {
+            fprintf(f, "JP %X\n", op & 0xfff);
+        }
+        else if (nibbles[0] == 0x2)
+        {
+            fprintf(f, "CALL %X\n", op & 0xfff);
+        }
+        else if (nibbles[0] == 0x3)
+        {
+            fprintf(f, "SE V%X, %X\n", nibbles[1], op & 0xff);
+        }
+        else if (nibbles[0] == 0x4)
+        {
+            fprintf(f, "SNE V%X, %X\n", nibbles[1], op & 0xff);
+        }
+        else if (nibbles[0] == 0x5 && nibbles[3] == 0x0)
+        {
+            fprintf(f, "SE V%X, V%X\n", nibbles[1], nibbles[2]);
+        }
+        else if (nibbles[0] == 0x6)
+        {
+            fprintf(f, "LD V%X, %X\n", nibbles[1], op & 0xff);
+        }
+        else if (nibbles[0] == 0x7)
+        {
+            fprintf(f, "ADD V%X, %X\n", nibbles[1], op & 0xff);
+        }
+        else if (nibbles[0] == 0x8 && nibbles[3] == 0x0)
+        {
+            fprintf(f, "LD V%X, V%X\n", nibbles[1], nibbles[2]);
+        }
+        else if (nibbles[0] == 0x8 && nibbles[3] == 0x1)
+        {
+            fprintf(f, "OR V%X, V%X\n", nibbles[1], nibbles[2]);
+        }
+        else if (nibbles[0] == 0x8 && nibbles[3] == 0x2)
+        {
+            fprintf(f, "AND V%X, V%X\n", nibbles[1], nibbles[2]);
+        }
+        else if (nibbles[0] == 0x8 && nibbles[3] == 0x3)
+        {
+            fprintf(f, "XOR V%X, V%X\n", nibbles[1], nibbles[2]);
+        }
+        else if (nibbles[0] == 0x8 && nibbles[3] == 0x4)
+        {
+            fprintf(f, "ADD V%X, V%X\n", nibbles[1], nibbles[2]);
+        }
+        else if (nibbles[0] == 0x8 && nibbles[3] == 0x5)
+        {
+            fprintf(f, "SUB V%X, V%X\n", nibbles[1], nibbles[2]);
+        }
+        else if (nibbles[0] == 0x8 && nibbles[3] == 0x6)
+        {
+            fprintf(f, "SHR V%X {, V%X}\n", nibbles[1], nibbles[2]);
+        }
+        else if (nibbles[0] == 0x8 && nibbles[3] == 0x7)
+        {
+            fprintf(f, "SUBN V%X, V%X\n", nibbles[1], nibbles[2]);
+        }
+        else if (nibbles[0] == 0x8 && nibbles[3] == 0xe)
+        {
+            fprintf(f, "SHL V%X {, V%X}\n", nibbles[1], nibbles[2]);
+        }
+        else if (nibbles[0] == 0x9 && nibbles[3] == 0x0)
+        {
+            fprintf(f, "SNE V%X, V%X\n", nibbles[1], nibbles[2]);
+        }
+        else if (nibbles[0] == 0xa)
+        {
+            fprintf(f, "LD I, %X\n", op & 0xfff);
+        }
+        else if (nibbles[0] == 0xb)
+        {
+            fprintf(f, "JP V0, %X\n", op & 0xfff);
+        }
+        else if (nibbles[0] == 0xc)
+        {
+            fprintf(f, "RND V%X, %X\n", nibbles[1], op & 0xff);
+        }
+        else if (nibbles[0] == 0xd)
+        {
+            fprintf(f, "DRW V%X, V%X, %X\n", nibbles[1], nibbles[2], nibbles[3]);
+        }
+        else if (nibbles[0] == 0xe && nibbles[2] == 0x9 && nibbles[3] == 0xe)
+        {
+            fprintf(f, "SKP V%X\n", nibbles[1]);
+        }
+        else if (nibbles[0] == 0xe && nibbles[2] == 0xa && nibbles[3] == 0x1)
+        {
+            fprintf(f, "SKNP V%X\n", nibbles[1]);
+        }
+        else if (nibbles[0] == 0xf && nibbles[2] == 0x0 && nibbles[3] == 0x7)
+        {
+            fprintf(f, "LD V%X, DT\n", nibbles[1]);
+        }
+        else if (nibbles[0] == 0xf && nibbles[2] == 0x0 && nibbles[3] == 0xa)
+        {
+            fprintf(f, "LD V%X, K\n", nibbles[1]);
+        }
+        else if (nibbles[0] == 0xf && nibbles[2] == 0x1 && nibbles[3] == 0x5)
+        {
+            fprintf(f, "LD DT, V%X\n", nibbles[1]);
+        }
+        else if (nibbles[0] == 0xf && nibbles[2] == 0x1 && nibbles[3] == 0x8)
+        {
+            fprintf(f, "LD ST, V%X\n", nibbles[1]);
+        }
+        else if (nibbles[0] == 0xf && nibbles[2] == 0x1 && nibbles[3] == 0xe)
+        {
+            fprintf(f, "ADD I, V%X\n", nibbles[1]);
+        }
+        else if (nibbles[0] == 0xf && nibbles[2] == 0x2 && nibbles[3] == 0x9)
+        {
+            fprintf(f, "LD F, V%X\n", nibbles[1]);
+        }
+        else if (nibbles[0] == 0xf && nibbles[2] == 0x3 && nibbles[3] == 0x3)
+        {
+            fprintf(f, "LD B, V%X\n", nibbles[1]);
+        }
+        else if (nibbles[0] == 0xf && nibbles[2] == 0x5 && nibbles[3] == 0x5)
+        {
+            fprintf(f, "LD [I], V%X\n", nibbles[1]);
+        }
+        else if (nibbles[0] == 0xf && nibbles[2] == 0x6 && nibbles[3] == 0x5)
+        {
+            fprintf(f, "LD V%X, [I]\n", nibbles[1]);
+        }
+        else
+        {
+            fprintf(f, "Unknown\n");
+        }
+    }
+    fclose(f);
 }
 
 void draw_display()
@@ -156,7 +327,7 @@ void execute_cycle()
 {
     // fetch opcode (left shift the first byte and or it with the second byte)
     current_opcode =  memory[reg_pc] << 8 | memory[reg_pc + 1];
-    printf("current op: %x\n", current_opcode);
+    printf("current op: %X\n", current_opcode);
     decode_and_execute(current_opcode);
 }
 
@@ -569,7 +740,7 @@ void store_key_press(uint8_t x)
     // wait for a valid key to be pressed and store it in Vx
     const uint8_t *keys = SDL_GetKeyboardState(NULL);
 
-    while (1)
+    while (true)
     {
         printf("awaiting valid key press\n");
         SDL_PumpEvents();

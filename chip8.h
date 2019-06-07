@@ -1,7 +1,9 @@
 #ifndef CHIP8_H
 #define CHIP8_H
 
-void init_emulator(char * path_to_rom);
+void init_emulator(char * path_to_rom, bool debug);
+void disassemble();
+void draw_display();
 void execute_cycle();
 void decode_and_execute(uint16_t opcode);
 void clear_display();
