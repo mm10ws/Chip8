@@ -80,21 +80,27 @@ SDL_Renderer *renderer;
 
 int main(int argc, char *argv[])
 {
-    init_emulator(argv[1], argv[2]);
+    char *path;
+    bool debug;
+    if (argc == 3)
+    {
+        path = argv[1];
+        if (strcmp(argv[2], "true") == 0)
+        {
+            debug = true;
+        }
+    }
+    else
+    {
+        printf("usage: chip8.o [full path to rom] [debug]\n");
+        return EXIT_FAILURE;
+    }
 
+    init_emulator(path, debug);
     for (;;)
     {
-        execute_cycle();
+        execute_cycle(debug);
         usleep(16000);
-
-        if (reg_delay > 0)
-        {
-            reg_delay--;
-        }
-        if (reg_sound > 0)
-        {
-            reg_sound--;
-        }
     }
     return 0;
 }
@@ -120,13 +126,8 @@ void init_emulator(char * path_to_rom, bool debug)
     }
     else
     {
-        perror("unable to open file\n");
+        perror("unable to open rom!\n");
         exit(EXIT_FAILURE);
-    }
-
-    if (debug)
-    {
-        disassemble();
     }
 
     // set up SDL for display output
@@ -136,171 +137,176 @@ void init_emulator(char * path_to_rom, bool debug)
         exit(EXIT_FAILURE);
     }
     SDL_CreateWindowAndRenderer(640, 320, 0, &window, &renderer);
-}
 
-void disassemble()
-{
-    FILE *f = fopen("output.txt", "w");
-    if (f == NULL)
+    // disassemble the rom in memory if debug flag is true
+    if (debug)
     {
-        printf("Error opening file!\n");
-        exit(EXIT_FAILURE);
-    }
-
-    for (int i = 0x200; i < 4094; i+=2)
-    {
-        uint16_t op = memory[i] << 8 | memory[i + 1];
-
-        uint8_t nibbles[4];
-        nibbles[0] = (op >> 12) & 0xf;
-        nibbles[1] = (op >> 8) & 0xf;
-        nibbles[2] = (op >> 4) & 0xf;
-        nibbles[3] = op & 0xf;
-
-        fprintf(f, "%4X | %4X | ", i, op);
-
-        if (op == 0x00e0)
+        FILE *f = fopen("disassemble.txt", "w+");
+        if (f == NULL)
         {
-            fprintf(f, "CLS\n");
-        }
-        else if (op == 0x00ee)
-        {
-            fprintf(f, "RET\n");
-        }
-        else if (nibbles[0] == 0x1)
-        {
-            fprintf(f, "JP %X\n", op & 0xfff);
-        }
-        else if (nibbles[0] == 0x2)
-        {
-            fprintf(f, "CALL %X\n", op & 0xfff);
-        }
-        else if (nibbles[0] == 0x3)
-        {
-            fprintf(f, "SE V%X, %X\n", nibbles[1], op & 0xff);
-        }
-        else if (nibbles[0] == 0x4)
-        {
-            fprintf(f, "SNE V%X, %X\n", nibbles[1], op & 0xff);
-        }
-        else if (nibbles[0] == 0x5 && nibbles[3] == 0x0)
-        {
-            fprintf(f, "SE V%X, V%X\n", nibbles[1], nibbles[2]);
-        }
-        else if (nibbles[0] == 0x6)
-        {
-            fprintf(f, "LD V%X, %X\n", nibbles[1], op & 0xff);
-        }
-        else if (nibbles[0] == 0x7)
-        {
-            fprintf(f, "ADD V%X, %X\n", nibbles[1], op & 0xff);
-        }
-        else if (nibbles[0] == 0x8 && nibbles[3] == 0x0)
-        {
-            fprintf(f, "LD V%X, V%X\n", nibbles[1], nibbles[2]);
-        }
-        else if (nibbles[0] == 0x8 && nibbles[3] == 0x1)
-        {
-            fprintf(f, "OR V%X, V%X\n", nibbles[1], nibbles[2]);
-        }
-        else if (nibbles[0] == 0x8 && nibbles[3] == 0x2)
-        {
-            fprintf(f, "AND V%X, V%X\n", nibbles[1], nibbles[2]);
-        }
-        else if (nibbles[0] == 0x8 && nibbles[3] == 0x3)
-        {
-            fprintf(f, "XOR V%X, V%X\n", nibbles[1], nibbles[2]);
-        }
-        else if (nibbles[0] == 0x8 && nibbles[3] == 0x4)
-        {
-            fprintf(f, "ADD V%X, V%X\n", nibbles[1], nibbles[2]);
-        }
-        else if (nibbles[0] == 0x8 && nibbles[3] == 0x5)
-        {
-            fprintf(f, "SUB V%X, V%X\n", nibbles[1], nibbles[2]);
-        }
-        else if (nibbles[0] == 0x8 && nibbles[3] == 0x6)
-        {
-            fprintf(f, "SHR V%X {, V%X}\n", nibbles[1], nibbles[2]);
-        }
-        else if (nibbles[0] == 0x8 && nibbles[3] == 0x7)
-        {
-            fprintf(f, "SUBN V%X, V%X\n", nibbles[1], nibbles[2]);
-        }
-        else if (nibbles[0] == 0x8 && nibbles[3] == 0xe)
-        {
-            fprintf(f, "SHL V%X {, V%X}\n", nibbles[1], nibbles[2]);
-        }
-        else if (nibbles[0] == 0x9 && nibbles[3] == 0x0)
-        {
-            fprintf(f, "SNE V%X, V%X\n", nibbles[1], nibbles[2]);
-        }
-        else if (nibbles[0] == 0xa)
-        {
-            fprintf(f, "LD I, %X\n", op & 0xfff);
-        }
-        else if (nibbles[0] == 0xb)
-        {
-            fprintf(f, "JP V0, %X\n", op & 0xfff);
-        }
-        else if (nibbles[0] == 0xc)
-        {
-            fprintf(f, "RND V%X, %X\n", nibbles[1], op & 0xff);
-        }
-        else if (nibbles[0] == 0xd)
-        {
-            fprintf(f, "DRW V%X, V%X, %X\n", nibbles[1], nibbles[2], nibbles[3]);
-        }
-        else if (nibbles[0] == 0xe && nibbles[2] == 0x9 && nibbles[3] == 0xe)
-        {
-            fprintf(f, "SKP V%X\n", nibbles[1]);
-        }
-        else if (nibbles[0] == 0xe && nibbles[2] == 0xa && nibbles[3] == 0x1)
-        {
-            fprintf(f, "SKNP V%X\n", nibbles[1]);
-        }
-        else if (nibbles[0] == 0xf && nibbles[2] == 0x0 && nibbles[3] == 0x7)
-        {
-            fprintf(f, "LD V%X, DT\n", nibbles[1]);
-        }
-        else if (nibbles[0] == 0xf && nibbles[2] == 0x0 && nibbles[3] == 0xa)
-        {
-            fprintf(f, "LD V%X, K\n", nibbles[1]);
-        }
-        else if (nibbles[0] == 0xf && nibbles[2] == 0x1 && nibbles[3] == 0x5)
-        {
-            fprintf(f, "LD DT, V%X\n", nibbles[1]);
-        }
-        else if (nibbles[0] == 0xf && nibbles[2] == 0x1 && nibbles[3] == 0x8)
-        {
-            fprintf(f, "LD ST, V%X\n", nibbles[1]);
-        }
-        else if (nibbles[0] == 0xf && nibbles[2] == 0x1 && nibbles[3] == 0xe)
-        {
-            fprintf(f, "ADD I, V%X\n", nibbles[1]);
-        }
-        else if (nibbles[0] == 0xf && nibbles[2] == 0x2 && nibbles[3] == 0x9)
-        {
-            fprintf(f, "LD F, V%X\n", nibbles[1]);
-        }
-        else if (nibbles[0] == 0xf && nibbles[2] == 0x3 && nibbles[3] == 0x3)
-        {
-            fprintf(f, "LD B, V%X\n", nibbles[1]);
-        }
-        else if (nibbles[0] == 0xf && nibbles[2] == 0x5 && nibbles[3] == 0x5)
-        {
-            fprintf(f, "LD [I], V%X\n", nibbles[1]);
-        }
-        else if (nibbles[0] == 0xf && nibbles[2] == 0x6 && nibbles[3] == 0x5)
-        {
-            fprintf(f, "LD V%X, [I]\n", nibbles[1]);
+            printf("error opening file disassemble.txt!\n");
         }
         else
         {
-            fprintf(f, "Unknown\n");
+            for (int i = 0x200; i < 4094; i+=2)
+            {
+                uint16_t opcode = memory[i] << 8 | memory[i + 1];
+                fprintf(f, "%4X | %4X | ", i, opcode);
+                disassemble(opcode, f);
+            }
+            fclose(f);
         }
     }
-    fclose(f);
+}
+
+void disassemble(uint16_t op, FILE *f)
+{
+    uint8_t nibbles[4];
+    nibbles[0] = (op >> 12) & 0xf;
+    nibbles[1] = (op >> 8) & 0xf;
+    nibbles[2] = (op >> 4) & 0xf;
+    nibbles[3] = op & 0xf;
+
+    if (op == 0x00e0)
+    {
+        fprintf(f, "CLS\n");
+    }
+    else if (op == 0x00ee)
+    {
+        fprintf(f, "RET\n");
+    }
+    else if (nibbles[0] == 0x1)
+    {
+        fprintf(f, "JP %X\n", op & 0xfff);
+    }
+    else if (nibbles[0] == 0x2)
+    {
+        fprintf(f, "CALL %X\n", op & 0xfff);
+    }
+    else if (nibbles[0] == 0x3)
+    {
+        fprintf(f, "SE V%X, %X\n", nibbles[1], op & 0xff);
+    }
+    else if (nibbles[0] == 0x4)
+    {
+        fprintf(f, "SNE V%X, %X\n", nibbles[1], op & 0xff);
+    }
+    else if (nibbles[0] == 0x5 && nibbles[3] == 0x0)
+    {
+        fprintf(f, "SE V%X, V%X\n", nibbles[1], nibbles[2]);
+    }
+    else if (nibbles[0] == 0x6)
+    {
+        fprintf(f, "LD V%X, %X\n", nibbles[1], op & 0xff);
+    }
+    else if (nibbles[0] == 0x7)
+    {
+        fprintf(f, "ADD V%X, %X\n", nibbles[1], op & 0xff);
+    }
+    else if (nibbles[0] == 0x8 && nibbles[3] == 0x0)
+    {
+        fprintf(f, "LD V%X, V%X\n", nibbles[1], nibbles[2]);
+    }
+    else if (nibbles[0] == 0x8 && nibbles[3] == 0x1)
+    {
+        fprintf(f, "OR V%X, V%X\n", nibbles[1], nibbles[2]);
+    }
+    else if (nibbles[0] == 0x8 && nibbles[3] == 0x2)
+    {
+        fprintf(f, "AND V%X, V%X\n", nibbles[1], nibbles[2]);
+    }
+    else if (nibbles[0] == 0x8 && nibbles[3] == 0x3)
+    {
+        fprintf(f, "XOR V%X, V%X\n", nibbles[1], nibbles[2]);
+    }
+    else if (nibbles[0] == 0x8 && nibbles[3] == 0x4)
+    {
+        fprintf(f, "ADD V%X, V%X\n", nibbles[1], nibbles[2]);
+    }
+    else if (nibbles[0] == 0x8 && nibbles[3] == 0x5)
+    {
+        fprintf(f, "SUB V%X, V%X\n", nibbles[1], nibbles[2]);
+    }
+    else if (nibbles[0] == 0x8 && nibbles[3] == 0x6)
+    {
+        fprintf(f, "SHR V%X {, V%X}\n", nibbles[1], nibbles[2]);
+    }
+    else if (nibbles[0] == 0x8 && nibbles[3] == 0x7)
+    {
+        fprintf(f, "SUBN V%X, V%X\n", nibbles[1], nibbles[2]);
+    }
+    else if (nibbles[0] == 0x8 && nibbles[3] == 0xe)
+    {
+        fprintf(f, "SHL V%X {, V%X}\n", nibbles[1], nibbles[2]);
+    }
+    else if (nibbles[0] == 0x9 && nibbles[3] == 0x0)
+    {
+        fprintf(f, "SNE V%X, V%X\n", nibbles[1], nibbles[2]);
+    }
+    else if (nibbles[0] == 0xa)
+    {
+        fprintf(f, "LD I, %X\n", op & 0xfff);
+    }
+    else if (nibbles[0] == 0xb)
+    {
+        fprintf(f, "JP V0, %X\n", op & 0xfff);
+    }
+    else if (nibbles[0] == 0xc)
+    {
+        fprintf(f, "RND V%X, %X\n", nibbles[1], op & 0xff);
+    }
+    else if (nibbles[0] == 0xd)
+    {
+        fprintf(f, "DRW V%X, V%X, %X\n", nibbles[1], nibbles[2], nibbles[3]);
+    }
+    else if (nibbles[0] == 0xe && nibbles[2] == 0x9 && nibbles[3] == 0xe)
+    {
+        fprintf(f, "SKP V%X\n", nibbles[1]);
+    }
+    else if (nibbles[0] == 0xe && nibbles[2] == 0xa && nibbles[3] == 0x1)
+    {
+        fprintf(f, "SKNP V%X\n", nibbles[1]);
+    }
+    else if (nibbles[0] == 0xf && nibbles[2] == 0x0 && nibbles[3] == 0x7)
+    {
+        fprintf(f, "LD V%X, DT\n", nibbles[1]);
+    }
+    else if (nibbles[0] == 0xf && nibbles[2] == 0x0 && nibbles[3] == 0xa)
+    {
+        fprintf(f, "LD V%X, K\n", nibbles[1]);
+    }
+    else if (nibbles[0] == 0xf && nibbles[2] == 0x1 && nibbles[3] == 0x5)
+    {
+        fprintf(f, "LD DT, V%X\n", nibbles[1]);
+    }
+    else if (nibbles[0] == 0xf && nibbles[2] == 0x1 && nibbles[3] == 0x8)
+    {
+        fprintf(f, "LD ST, V%X\n", nibbles[1]);
+    }
+    else if (nibbles[0] == 0xf && nibbles[2] == 0x1 && nibbles[3] == 0xe)
+    {
+        fprintf(f, "ADD I, V%X\n", nibbles[1]);
+    }
+    else if (nibbles[0] == 0xf && nibbles[2] == 0x2 && nibbles[3] == 0x9)
+    {
+        fprintf(f, "LD F, V%X\n", nibbles[1]);
+    }
+    else if (nibbles[0] == 0xf && nibbles[2] == 0x3 && nibbles[3] == 0x3)
+    {
+        fprintf(f, "LD B, V%X\n", nibbles[1]);
+    }
+    else if (nibbles[0] == 0xf && nibbles[2] == 0x5 && nibbles[3] == 0x5)
+    {
+        fprintf(f, "LD [I], V%X\n", nibbles[1]);
+    }
+    else if (nibbles[0] == 0xf && nibbles[2] == 0x6 && nibbles[3] == 0x5)
+    {
+        fprintf(f, "LD V%X, [I]\n", nibbles[1]);
+    }
+    else
+    {
+        fprintf(f, "Unknown\n");
+    }
 }
 
 void draw_display()
@@ -323,12 +329,58 @@ void draw_display()
 }
 
 // execute a single cycle: fetch, decode, and execute
-void execute_cycle()
+void execute_cycle(bool debug)
 {
     // fetch opcode (left shift the first byte and or it with the second byte)
     current_opcode =  memory[reg_pc] << 8 | memory[reg_pc + 1];
-    printf("current op: %X\n", current_opcode);
     decode_and_execute(current_opcode);
+    if (reg_delay > 0)
+    {
+        reg_delay--;
+    }
+    if (reg_sound > 0)
+    {
+        reg_sound--;
+    }
+    if (debug)
+    {
+        write_debug();
+    }
+}
+
+void write_debug()
+{
+    FILE *f = fopen("debug.txt", "a");
+    if (f == NULL)
+    {
+        printf("error opening file debug.txt!\n");
+    }
+    else
+    {
+        // print disassembled instruction
+        disassemble(current_opcode, f);
+
+        // print pc and opcode
+        fprintf(f, "pc=%X opcode=%X\n", reg_pc, current_opcode);
+
+        // print Vx registers
+        for (int i = 0; i < 16; i++)
+        {
+            fprintf(f, "V%X=%X ", i, reg_vx[i]);
+        }
+        fprintf(f, "\n");
+
+        // print index, stack pointer, delay, sound timer
+        fprintf(f, "I=%X sp=%X delay=%X sound=%X\n", reg_i, reg_sp, reg_delay, reg_sound);
+
+        // print the stack
+        for (int i = 0; i < 16; i++)
+        {
+            fprintf(f, "S%X=%X ", i, stack[i]);
+        }
+        fprintf(f, "\n\n");
+        fclose(f);
+    }
 }
 
 void decode_and_execute(uint16_t opcode)

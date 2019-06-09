@@ -2,9 +2,10 @@
 #define CHIP8_H
 
 void init_emulator(char * path_to_rom, bool debug);
-void disassemble();
+void disassemble(uint16_t op, FILE *f);
 void draw_display();
-void execute_cycle();
+void execute_cycle(bool debug);
+void write_debug();
 void decode_and_execute(uint16_t opcode);
 void clear_display();
 void return_instruction();
