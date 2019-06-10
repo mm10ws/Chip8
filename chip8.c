@@ -29,7 +29,7 @@ uint16_t stack[16];
 uint8_t memory[4096];
 
 // display information 64x32 display
-uint8_t display[64 * 32];
+uint8_t display[64][32];
 
 // opcode 2 bytes
 uint16_t current_opcode;
@@ -100,7 +100,7 @@ int main(int argc, char *argv[])
     for (;;)
     {
         execute_cycle(debug);
-        usleep(16000);
+        usleep(1600);
     }
     return 0;
 }
@@ -314,13 +314,13 @@ void draw_display()
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
     SDL_RenderClear(renderer);
     SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
-    for (int i = 0; i < 320; i++)
+    for (int i = 0; i < 640; i++)
     {
-        for (int j = 0; j < 640; j++)
+        for (int j = 0; j < 320; j++)
         {
-            if (display[i/10 + 64 * (j / 10)] == 0x1)
+            if (display[i/10][j/10] == 0x1)
             {
-                SDL_RenderDrawPoint(renderer, j, i);
+                SDL_RenderDrawPoint(renderer, i, j);
             }
         }
     }
@@ -378,7 +378,21 @@ void write_debug()
         {
             fprintf(f, "S%X=%X ", i, stack[i]);
         }
-        fprintf(f, "\n\n");
+        fprintf(f, "\n");
+
+        if (current_opcode >> 12 == 0xd)
+        {
+            for (int i = 0; i < 32; i++)
+            {
+                for (int j = 0; j < 64; j++)
+                {
+                    fprintf(f, "%X ", display[i][j]);
+                }
+                fprintf(f, "\n");
+            }
+        }
+        fprintf(f, "\n");
+
         fclose(f);
     }
 }
@@ -537,7 +551,7 @@ void decode_and_execute(uint16_t opcode)
 
 void clear_display()
 {
-    memset(display, 0, sizeof(display));
+    memset(display, 0, sizeof(display[0][0] * 32 * 64));
     draw_display();
     reg_pc += 2;
 }
@@ -735,18 +749,21 @@ void set_reg_random_byte(uint8_t x, uint16_t opcode)
 void display_sprite(uint8_t x, uint8_t y, uint8_t n)
 {
     reg_vx[0xf] = 0;
+    uint8_t reg_x = reg_vx[x];
+    uint8_t reg_y = reg_vx[y];
+
     for (int i = 0; i < n; i++)
     {
         uint8_t pixel = memory[reg_i + i];
         for (int j = 0; j < 8; j++)
         {
             uint8_t pixel_bit = (pixel & (0x80 >> j)) >> (7 - j);
-            uint8_t display_bit = display[x + i + 64 * (y + j)];
+            uint8_t display_bit = display[reg_x + j][reg_y + i];
             if ((pixel_bit & display_bit) == 0x1)
             {
                 reg_vx[0xf] = 1;
             }
-            display[x + i + 64 * (y + j)] ^= pixel_bit;
+            display[reg_x + j][reg_y + i] ^= pixel_bit;
         }
     }
     reg_pc += 2;
@@ -760,7 +777,7 @@ void skip_if_key_pressed(uint8_t x)
     SDL_PumpEvents();
 
     int key = sdl_keymapping[reg_vx[x]];
-    if (keys[key])
+    if (keys[key] != 0)
     {
         reg_pc += 2;
     }
@@ -774,7 +791,7 @@ void skip_if_key_not_pressed(uint8_t x)
     SDL_PumpEvents();
 
     int key = sdl_keymapping[reg_vx[x]];
-    if (!keys[key])
+    if (keys[key] == 0)
     {
         reg_pc += 2;
     }
@@ -799,7 +816,7 @@ void store_key_press(uint8_t x)
 
         for (int i = 0; i < 16; i++)
         {
-            if (keys[sdl_keymapping[i]])
+            if (keys[sdl_keymapping[i]] != 0)
             {
                 reg_vx[x] = i;
                 reg_pc += 2;
