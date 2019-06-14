@@ -92,7 +92,7 @@ int main(int argc, char *argv[])
     }
     else
     {
-        printf("usage: chip8.o [full path to rom] [debug]\n");
+        printf("usage: ./chip8 [full path to rom] [debug]\n");
         return EXIT_FAILURE;
     }
 
@@ -100,9 +100,27 @@ int main(int argc, char *argv[])
     for (;;)
     {
         execute_cycle(debug);
+
+        // If the escape key is pressed stop the emulation loop
+        const uint8_t *keys = SDL_GetKeyboardState(NULL);
+        SDL_PumpEvents();
+        if (keys[SDL_SCANCODE_ESCAPE] != 0)
+        {
+            break;
+        }
+
         usleep(1600);
     }
+
+    cleanup();
     return 0;
+}
+
+void cleanup()
+{
+    SDL_DestroyRenderer(renderer);
+    SDL_DestroyWindow(window);
+    SDL_Quit();
 }
 
 // Sets all registers to their initial values
